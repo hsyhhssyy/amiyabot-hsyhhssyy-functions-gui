@@ -55,10 +55,6 @@ async def custom_verify_verify(data: Message, config_name, switch_key, old_func)
 
 async def multi_keyword_verify(data: Message, config_name, switch_key, level, old_array):
 
-    if not global_loaded_switch:
-        if any(substring in text for substring in old_array):
-            return True, level
-        return False, 0
 
     channel_id = "0"
     if hasattr(data, "channel_id"):
@@ -67,6 +63,12 @@ async def multi_keyword_verify(data: Message, config_name, switch_key, level, ol
     text = ""
     if hasattr(data, "text"):
         text = data.text
+
+    if not global_loaded_switch:
+        if any(substring in text for substring in old_array):
+            return True, level
+        return False, 0
+
 
     switch = bot.get_config(switch_key, channel_id)
 
@@ -89,7 +91,7 @@ def make_custom_verify_verify(config_key, switch_key, old_func):
 
 
 def make_multi_keyword_verify(config_key, switch_key, level, old_array):
-    return lambda data: multi_keyword_verify(data, config_key, switch_key, level)
+    return lambda data: multi_keyword_verify(data, config_key, switch_key, level, old_array)
 
 
 class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
@@ -168,7 +170,8 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
         self._AmiyaBotPluginInstance__global_config_schema = self._AmiyaBotPluginInstance__parse_to_json(
             config_schema)
 
-        # log.info(f'config is {self.get_config_defaults()}')
+        global global_loaded_switch
+        global_loaded_switch = True
 
 
 bot = PluginConfigDemoPluginInstance(
@@ -177,12 +180,7 @@ bot = PluginConfigDemoPluginInstance(
     plugin_id='amiyabot-hsyhhssyy-functions-gui',
     plugin_type='',
     description='一个可以通过图形界面开关插件子功能的插件',
-    document=f'{curr_dir}/README.md',
-    channel_config_default=default_path,
-    channel_config_schema=schema_path,
-    global_config_default=default_path,
-    global_config_schema=schema_path,
-    deprecated_config_delete_days=-1
+    document=f'{curr_dir}/README.md'
 )
 
 
