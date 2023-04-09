@@ -4,7 +4,7 @@ import re
 import json
 from typing import List
 
-from amiyabot import Message, Chain
+from amiyabot import Message, Chain, Equal
 from core import bot as main_bot
 from core import log
 from core.customPluginInstance import AmiyaBotPluginInstance
@@ -14,6 +14,7 @@ from core.database.plugin import PluginConfiguration
 curr_dir = os.path.dirname(__file__)
 
 global_loaded_switch = False
+
 
 async def custom_verify_verify(data: Message, config_name, switch_key, old_func):
 
@@ -37,6 +38,36 @@ async def custom_verify_verify(data: Message, config_name, switch_key, old_func)
     return await old_func(data)
 
 
+async def equal_verify(data: Message, config_name, switch_key, level, equal):
+
+    text = ""
+    if hasattr(data, "text"):
+        text = data.text
+
+    channel_id = "0"
+    if hasattr(data, "channel_id"):
+        channel_id = data.channel_id
+
+    if not global_loaded_switch:
+        if text == equal.content:
+            return True, level
+        return False, 0
+
+    switch = bot.get_config(switch_key, channel_id)
+
+    if not switch:
+        if text == equal.content:
+            return True, level
+        return False, 0
+
+    new_key = bot.get_config(config_name, channel_id)
+
+    if not new_key or new_key == "":
+        return False, 0
+
+    return text == new_key, level
+
+
 async def multi_keyword_verify(data: Message, config_name, switch_key, level, old_array):
 
     channel_id = "0"
@@ -51,7 +82,6 @@ async def multi_keyword_verify(data: Message, config_name, switch_key, level, ol
         if any(substring in text for substring in old_array):
             return True, level
         return False, 0
-
 
     switch = bot.get_config(switch_key, channel_id)
 
@@ -69,6 +99,10 @@ async def multi_keyword_verify(data: Message, config_name, switch_key, level, ol
     if any(substring in text for substring in array):
         return True, level
     return False, 0
+
+
+def make_equal_verify(config_key, switch_key, level, equal):
+    return lambda data: equal_verify(data, config_key, switch_key, level, equal)
 
 
 def make_custom_verify_verify(config_key, switch_key, old_func):
@@ -113,16 +147,28 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
                     handler = handlers[i]
 
                     if handler.keywords is not None:
-                        key = f"{plugin.plugin_id}-{plugin.version}-handler-keyword-{i}"
-                        config_default[key] = handler.keywords[:]
-                        propertys[key] = {
-                            "title": f"消息处理器{i+1}",
-                            "type": "array"
-                        }
-                        handler.custom_verify = make_multi_keyword_verify(
-                            key, plugin_overall_key, handler.level, handler.keywords)
-                        handler.keywords = None
-                        handler.level = None
+                        if isinstance(handler.keywords, Equal):
+                            key = f"{plugin.plugin_id}-{plugin.version}-handler-equal-{i}"
+                            config_default[key] = handler.keywords.content
+                            propertys[key] = {
+                                "title": f"消息处理器{i+1}",
+                                "type": "string"
+                            }
+                            handler.custom_verify = make_equal_verify(
+                                key, plugin_overall_key, handler.level, handler.keywords)
+                            handler.keywords = None
+                            handler.level = None
+                        else:
+                            key = f"{plugin.plugin_id}-{plugin.version}-handler-keyword-{i}"
+                            config_default[key] = handler.keywords[:]
+                            propertys[key] = {
+                                "title": f"消息处理器{i+1}",
+                                "type": "array"
+                            }
+                            handler.custom_verify = make_multi_keyword_verify(
+                                key, plugin_overall_key, handler.level, handler.keywords)
+                            handler.keywords = None
+                            handler.level = None
                     elif handler.custom_verify is not None:
                         key = f"{plugin.plugin_id}-{plugin.version}-handler-custom_verify-{i}"
                         config_default[key] = True
@@ -157,30 +203,29 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
                 PluginConfiguration.plugin_id == self.plugin_id
             )
 
-
             for channel_conf in configs:
                 channel_conf_json = json.loads(channel_conf.json_config)
                 # 补充新的配置项
                 diff_dict = {key: copy.deepcopy(
                     value) for key, value in config_default.items() if key not in channel_conf_json}
                 channel_conf_json.update(diff_dict)
-                
-                log.info(f'{channel_conf_json}')
 
                 if channel_conf.channel_id == global_config_channel_key:
-                    self._AmiyaBotPluginInstance__set_global_config(channel_conf_json)
+                    self._AmiyaBotPluginInstance__set_global_config(
+                        channel_conf_json)
                 else:
-                    self._AmiyaBotPluginInstance__set_channel_config(channel_conf.channel_id,channel_conf_json)
-                
-        
+                    self._AmiyaBotPluginInstance__set_channel_config(
+                        channel_conf.channel_id, channel_conf_json)
+
         except Exception as e:
-                log.error(e, f"Error: {plugin.plugin_id}")
+            log.error(e, f"Error: {plugin.plugin_id}")
 
         log.info('配置项生成完毕')
 
+
 bot = PluginConfigDemoPluginInstance(
     name='超级功能开关',
-    version='1.1',
+    version='1.0',
     plugin_id='amiyabot-hsyhhssyy-functions-gui',
     plugin_type='',
     description='一个可以通过图形界面开关插件子功能的插件',
