@@ -1,11 +1,14 @@
+import copy
 import os
 import re
 import json
+from typing import List
 
 from amiyabot import Message, Chain
 from core import bot as main_bot
 from core import log
 from core.customPluginInstance import AmiyaBotPluginInstance
+from core.customPluginInstance.amiyaBotPluginInstance import global_config_channel_key
 from core.database.plugin import PluginConfiguration
 
 curr_dir = os.path.dirname(__file__)
@@ -93,7 +96,7 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
             if plugin.plugin_id == 'amiyabot-hsyhhssyy-functions-gui':
                 continue
 
-            plugin_overall_key = f"{plugin.plugin_id}-global"
+            plugin_overall_key = f"{plugin.plugin_id}-{plugin.version}-global"
 
             config_default[plugin_overall_key] = False
             propertys[plugin_overall_key] = {
@@ -110,7 +113,7 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
                     handler = handlers[i]
 
                     if handler.keywords is not None:
-                        key = f"{plugin.plugin_id}-handler-keyword-{i}"
+                        key = f"{plugin.plugin_id}-{plugin.version}-handler-keyword-{i}"
                         config_default[key] = handler.keywords[:]
                         propertys[key] = {
                             "title": f"消息处理器{i+1}",
@@ -121,7 +124,7 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
                         handler.keywords = None
                         handler.level = None
                     elif handler.custom_verify is not None:
-                        key = f"{plugin.plugin_id}-handler-custom_verify-{i}"
+                        key = f"{plugin.plugin_id}-{plugin.version}-handler-custom_verify-{i}"
                         config_default[key] = True
                         propertys[key] = {
                             "title": f"消息处理器{i+1}",
@@ -147,6 +150,33 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
         global global_loaded_switch
         global_loaded_switch = True
 
+        try:
+
+            # 我来检查所有配置项并进行强制比对
+            configs: List[PluginConfiguration] = PluginConfiguration.select().where(
+                PluginConfiguration.plugin_id == self.plugin_id
+            )
+
+
+            for channel_conf in configs:
+                channel_conf_json = json.loads(channel_conf.json_config)
+                # 补充新的配置项
+                diff_dict = {key: copy.deepcopy(
+                    value) for key, value in config_default.items() if key not in channel_conf_json}
+                channel_conf_json.update(diff_dict)
+                
+                log.info(f'{channel_conf_json}')
+
+                if channel_conf.channel_id == global_config_channel_key:
+                    self._AmiyaBotPluginInstance__set_global_config(channel_conf_json)
+                else:
+                    self._AmiyaBotPluginInstance__set_channel_config(channel_conf.channel_id,channel_conf_json)
+                
+        
+        except Exception as e:
+                log.error(e, f"Error: {plugin.plugin_id}")
+
+        log.info('配置项生成完毕')
 
 bot = PluginConfigDemoPluginInstance(
     name='超级功能开关',
