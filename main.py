@@ -10,22 +10,7 @@ from core.database.plugin import PluginConfiguration
 
 curr_dir = os.path.dirname(__file__)
 
-schema_path = f'{curr_dir}/../../resource/hsyhhssyy_functions_gui/schema.json'
-default_path = f'{curr_dir}/../../resource/hsyhhssyy_functions_gui/default.json'
-
-if not os.path.exists(f'{curr_dir}/../../resource/hsyhhssyy_functions_gui'):
-    os.makedirs(f'{curr_dir}/../../resource/hsyhhssyy_functions_gui')
-
-if not os.path.exists(schema_path):
-    with open(schema_path, 'w') as f:
-        f.write('{}')
-
-if not os.path.exists(default_path):
-    with open(default_path, 'w') as f:
-        f.write('{}')
-
 global_loaded_switch = False
-
 
 async def custom_verify_verify(data: Message, config_name, switch_key, old_func):
 
@@ -36,14 +21,10 @@ async def custom_verify_verify(data: Message, config_name, switch_key, old_func)
     if hasattr(data, "channel_id"):
         channel_id = data.channel_id
 
-    text = ""
-    if hasattr(data, "text"):
-        text = data.text
-
     switch = bot.get_config(switch_key, channel_id)
 
     if not switch:
-        return False, 0
+        return await old_func(data)
 
     switch = bot.get_config(config_name, channel_id)
 
@@ -54,7 +35,6 @@ async def custom_verify_verify(data: Message, config_name, switch_key, old_func)
 
 
 async def multi_keyword_verify(data: Message, config_name, switch_key, level, old_array):
-
 
     channel_id = "0"
     if hasattr(data, "channel_id"):
@@ -73,6 +53,8 @@ async def multi_keyword_verify(data: Message, config_name, switch_key, level, ol
     switch = bot.get_config(switch_key, channel_id)
 
     if not switch:
+        if any(substring in text for substring in old_array):
+            return True, level
         return False, 0
 
     array = bot.get_config(config_name, channel_id)
@@ -113,7 +95,7 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
 
             plugin_overall_key = f"{plugin.plugin_id}-global"
 
-            config_default[plugin_overall_key] = True
+            config_default[plugin_overall_key] = False
             propertys[plugin_overall_key] = {
                 "title": f"全局开关：{plugin.name}",
                 "description": f"{plugin.description}",
@@ -152,14 +134,6 @@ class PluginConfigDemoPluginInstance(AmiyaBotPluginInstance):
 
             except Exception as e:
                 log.error(e, f"Error: {plugin.plugin_id}")
-
-        # 写入文件，并指示推荐系统重启
-
-        with open(default_path, 'w') as f:
-            f.write(json.dumps(config_default))
-
-        with open(schema_path, 'w') as f:
-            f.write(json.dumps(config_schema))
 
         self._AmiyaBotPluginInstance__channel_config_default = self._AmiyaBotPluginInstance__parse_to_json(
             config_default)
